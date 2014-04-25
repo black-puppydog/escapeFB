@@ -1,12 +1,14 @@
 #! /usr/bin/env python
 
-import io, json
+import io
+import json
 import sys
 import os
 import fnmatch
 from PIL import Image
-from datetime import datetime
+from datetime import datetime, timedelta
 import imagehash
+
 
 COMMON_IMAGE_PATTERNS = ["*.jpg", "*.JPG", "*.png", "*.PNG"]
 
@@ -24,6 +26,8 @@ def image_descriptor(image_path):
     img = Image.open(image_path)
     result = {'width': img.size[0],
               'height': img.size[1],
+              'created': os.path.getctime(image_path),
+              'modified': os.path.getmtime(image_path),
               'aHash': str(imagehash.average_hash(img)),
               'pHash': str(imagehash.phash(img)),
               'dHash': str(imagehash.dhash(img)),
@@ -37,18 +41,27 @@ def write_dict_to_json(data, filename):
 
 
 def build_image_db(root_path, db_filename, patterns=COMMON_IMAGE_PATTERNS):
-    filenames = find_images(root_path, patterns)
     data = {"root_path": root_path}
     time_started = datetime.now()
     print("{0}: Starting scan of {1}".format(time_started, root_path))
+    filenames = list(find_images(root_path, patterns))
+    images_total = len(filenames)
+    print("{0}: Found {1} images".format(datetime.now(), images_total))
 
     images = {}
     data["images"] = images
 
-    for filename_rel in filenames:
-        print("{0}: Extracting descriptor for {1}".format(datetime.now(), filename_rel))
+    for idx, filename_rel in enumerate(filenames):
         filename_abs = os.path.join(root_path, filename_rel)
         images[filename_rel] = image_descriptor(filename_abs)
+
+        now = datetime.now()
+        done = float(idx+1) / images_total
+        time_so_far = (now-time_started).total_seconds()
+        eta = timedelta(seconds=time_so_far * (images_total-idx-1) / float(idx+1))
+        print("{0}: {1:.2f}% ({2} / {3}) ETA: {4} File: {5}"
+              .format(now, done*100, idx+1, images_total, eta, filename_rel))
+
 
     time_finished = datetime.now()
     time_taken = time_finished - time_started
