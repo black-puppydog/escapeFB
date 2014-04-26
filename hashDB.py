@@ -71,7 +71,7 @@ def _descriptor(root_path, images):
     return lambda t: (t[0], t[1], image_descriptor(os.path.join(root_path, t[1]), images.get(t[1])))
 
 
-def build_image_db(root_path, db_filename, patterns=COMMON_IMAGE_PATTERNS, resume=True):
+def build_image_db(root_path, db_filename, patterns=COMMON_IMAGE_PATTERNS, resume=True, save_every=600):
     if resume:
         try:
             data = read_dict_from_json(db_filename)
@@ -99,6 +99,27 @@ def build_image_db(root_path, db_filename, patterns=COMMON_IMAGE_PATTERNS, resum
             data = {'root_path': root_path, "images": {}}
     else:
         data = {'root_path': root_path}
+
+
+    def write_result():
+        '''helper to write results'''
+        time_finished = datetime.now()
+        time_taken = time_finished - time_started
+
+        if(data["finished"]):
+            print("{0}: Scan finished, took {1}".format(time_finished, time_taken))
+        else:
+            print("{0}: Saving {1} intermediate results after {2}"
+                  .format(time_finished, len(data["images"]), time_taken))
+        data["timing"] = {
+            "scan_start": str(time_started),
+            "scan_end": str(time_finished),
+            "scan_duration": str(time_taken),
+        }
+
+        print("{0}: Writing resulting database to {1}".format(datetime.now(), db_filename))
+        write_dict_to_json(data, db_filename)
+
     time_started = datetime.now()
     print("{0}: Starting scan of {1}".format(time_started, root_path))
     filenames = list(find_images(root_path, patterns))
@@ -106,6 +127,9 @@ def build_image_db(root_path, db_filename, patterns=COMMON_IMAGE_PATTERNS, resum
     print("{0}: Found {1} images".format(datetime.now(), images_total))
 
     images = data["images"]
+    data["finished"] = False
+
+    last_checkpoint = 0
 
     try:
         with ThreadPoolExecutor(4) as executor:
@@ -114,12 +138,20 @@ def build_image_db(root_path, db_filename, patterns=COMMON_IMAGE_PATTERNS, resum
 
                 now = datetime.now()
                 done = float(idx + 1) / images_total
-                time_so_far = (now - time_started).total_seconds()
-                eta = timedelta(seconds=time_so_far * (images_total - idx - 1) / float(idx + 1))
+                time_so_far = (now - time_started)
+                seconds_so_far = time_so_far.total_seconds()
+
+                # save temporary progress, just to be sure
+                if int(seconds_so_far/save_every) > last_checkpoint:
+                    write_result()
+                    last_checkpoint = int(seconds_so_far/save_every)
+
+                eta = timedelta(seconds=seconds_so_far * (images_total - idx - 1) / float(idx + 1))
                 print("{0}: {1:.2f}% ({2} / {3}) ETA: {4} File: {5}"
                       .format(now, done * 100, idx + 1, images_total, eta, filename_rel))
 
         data["successful"] = True
+        data["finished"] = True
 
     except KeyboardInterrupt:
         print("{0}: Caught keyboard interrupt. Aborting."
@@ -133,17 +165,7 @@ def build_image_db(root_path, db_filename, patterns=COMMON_IMAGE_PATTERNS, resum
         print(tb)
         data["successful"] = False
 
-    time_finished = datetime.now()
-    time_taken = time_finished - time_started
-    print("{0}: Scan finished, took {1}".format(time_finished, time_taken))
-    data["timing"] = {
-        "scan_start": str(time_started),
-        "scan_end": str(time_finished),
-        "scan_duration": str(time_taken),
-    }
-
-    print("{0}: Writing resulting database to {1}".format(datetime.now(), db_filename))
-    write_dict_to_json(data, db_filename)
+    write_result()
 
     print("FINISHED\n")
 
