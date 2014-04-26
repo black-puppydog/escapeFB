@@ -4,11 +4,15 @@ import json
 import sys
 import os
 import fnmatch
-from PIL import Image
+from PIL import Image, ImageFile
 from datetime import datetime, timedelta
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 import imagehash
+
+# be more flexible when processing bad images
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 
 WORKER_THREADS = 4
 
@@ -86,7 +90,7 @@ def build_image_db(root_path, db_filename, patterns=COMMON_IMAGE_PATTERNS, resum
                     bad.append(fname)
             for fname in bad:
                 del img[fname]
-            print("Removed {0} non-existing images, left with {1}.".format(len(bad), len(img)))
+            print("Removed {0} non-existing images, left with {1} that could be skipped".format(len(bad), len(img)))
 
         except SystemExit:
             raise
