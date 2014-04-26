@@ -110,8 +110,11 @@ def build_image_db(root_path, db_filename, patterns=COMMON_IMAGE_PATTERNS, resum
 
     except KeyboardInterrupt:
         print("{0}: Caught keyboard interrupt. Aborting."
-              .format(now, done * 100, idx + 1, images_total, eta, filename_rel))
+              .format(datetime.now()))
 
+        data["successful"] = False
+    except:
+        print("Caught Exception. Saving Progress so far.")
         data["successful"] = False
 
     time_finished = datetime.now()
