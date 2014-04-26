@@ -75,19 +75,27 @@ def build_image_db(root_path, db_filename, patterns=COMMON_IMAGE_PATTERNS, resum
     if resume:
         try:
             data = read_dict_from_json(db_filename)
-            if data['root_path'] != root_path:
+            if not os.path.samefile(data['root_path'], root_path):
                 print("Root paths do not match!")
                 sys.exit(1)
 
-            # remove images that have been removed from the library
-            img = data["images"]
-            for fname in img.keys():
-                if not os.path.isfile(os.path.join(root_path, fname)):
-                    del img[fname]
             print("Loaded {0} images from old database file.".format(len(data["images"])))
 
-        except:
-            print("Could not load prior database. Starting from scratch.")
+            # remove images that have been removed from the library
+            img = data["images"]
+            bad=[]
+            for fname in img.keys():
+                if not os.path.isfile(os.path.join(root_path, fname)):
+                    bad.append(fname)
+            for fname in bad:
+                del img[fname]
+            print("Removed {0} non-existing images, left with {1}.".format(len(bad), len(img)))
+
+        except SystemExit:
+            raise
+
+        except Exception as e:
+            print("Could not load prior database ({0}). Starting from scratch.".format(e))
             data = {'root_path': root_path, "images": {}}
     else:
         data = {'root_path': root_path}
@@ -146,22 +154,3 @@ if __name__ == "__main__":
     db_filename = sys.argv[2]
 
     build_image_db(root_path, db_filename)
-
-    sys.exit(0)
-
-    # test file finding
-    root_path = sys.argv[1]
-    print("Root: {0}".format(root_path))
-
-    if len(sys.argv) > 2:
-        patterns = sys.argv[2:]
-    else:
-        patterns = COMMON_IMAGE_PATTERNS
-
-    filenames = find_images(root_path, patterns)
-
-    for filename in filenames:
-        print(filename)
-
-    # test json writing
-    write_dict_to_json({'bla': {"one": {1: 2, 4: 3}, "two": {"foo": "bar"}}}, "test.json")
