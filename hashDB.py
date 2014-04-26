@@ -7,6 +7,8 @@ import os
 import fnmatch
 from PIL import Image
 from datetime import datetime, timedelta
+import traceback
+from concurrent.futures import ThreadPoolExecutor
 import imagehash
 
 
@@ -66,6 +68,10 @@ def write_dict_to_json(data, filename):
         f.write(unicode(json.dumps(data, ensure_ascii=False, indent=4)))
 
 
+def _descriptor(root_path, images):
+    return lambda (idx, filename_rel): (idx, filename_rel, image_descriptor(os.path.join(root_path, filename_rel), images.get(filename_rel)))
+
+
 def build_image_db(root_path, db_filename, patterns=COMMON_IMAGE_PATTERNS, resume=True):
     if resume:
         try:
@@ -95,16 +101,16 @@ def build_image_db(root_path, db_filename, patterns=COMMON_IMAGE_PATTERNS, resum
     images = data["images"]
 
     try:
-        for idx, filename_rel in enumerate(filenames):
-            filename_abs = os.path.join(root_path, filename_rel)
-            images[filename_rel] = image_descriptor(filename_abs, images.get(filename_rel))
+        with ThreadPoolExecutor(4) as executor:
+            for (idx, filename_rel, desc) in executor.map(_descriptor(root_path, images), enumerate(filenames)):
+                images[filename_rel] = desc
 
-            now = datetime.now()
-            done = float(idx + 1) / images_total
-            time_so_far = (now - time_started).total_seconds()
-            eta = timedelta(seconds=time_so_far * (images_total - idx - 1) / float(idx + 1))
-            print("{0}: {1:.2f}% ({2} / {3}) ETA: {4} File: {5}"
-                  .format(now, done * 100, idx + 1, images_total, eta, filename_rel))
+                now = datetime.now()
+                done = float(idx + 1) / images_total
+                time_so_far = (now - time_started).total_seconds()
+                eta = timedelta(seconds=time_so_far * (images_total - idx - 1) / float(idx + 1))
+                print("{0}: {1:.2f}% ({2} / {3}) ETA: {4} File: {5}"
+                      .format(now, done * 100, idx + 1, images_total, eta, filename_rel))
 
         data["successful"] = True
 
@@ -113,8 +119,11 @@ def build_image_db(root_path, db_filename, patterns=COMMON_IMAGE_PATTERNS, resum
               .format(datetime.now()))
 
         data["successful"] = False
-    except:
+    except Exception as e:
         print("Caught Exception. Saving Progress so far.")
+        print(e)
+        tb = traceback.format_exc()
+        print(tb)
         data["successful"] = False
 
     time_finished = datetime.now()
