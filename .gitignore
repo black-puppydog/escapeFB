@@ -1,0 +1,12 @@
+# stuff that really does not interest anybody
+sandbox.py
+
+# in case I dump my results in this directory
+*.json
+
+# the usual
+*.pyc
+*~
+
+# pycharm
+.idea/*

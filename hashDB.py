@@ -1,6 +1,5 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
-import io
 import json
 import sys
 import os
@@ -58,18 +57,18 @@ def image_descriptor(image_path, prior=None):
 
 
 def read_dict_from_json(filename):
-    with open(filename, 'r') as f:
+    with open(filename, 'r', encoding='utf-8') as f:
         result = json.load(f, encoding='utf-8')
     return result
 
 
 def write_dict_to_json(data, filename):
-    with io.open(filename, 'w', encoding='utf-8') as f:
-        f.write(unicode(json.dumps(data, ensure_ascii=False, indent=4)))
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, sort_keys=True, indent=4, separators=(',', ': '))
 
 
 def _descriptor(root_path, images):
-    return lambda (idx, filename_rel): (idx, filename_rel, image_descriptor(os.path.join(root_path, filename_rel), images.get(filename_rel)))
+    return lambda t: (t[0], t[1], image_descriptor(os.path.join(root_path, t[1]), images.get(t[1])))
 
 
 def build_image_db(root_path, db_filename, patterns=COMMON_IMAGE_PATTERNS, resume=True):
