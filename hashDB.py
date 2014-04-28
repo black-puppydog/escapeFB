@@ -38,6 +38,7 @@ def image_descriptor(image_path, prior=None):
                   'height': img.size[1],
                   'created': mtime,
                   'modified': ctime,
+                  # TODO: if results too bad, change hash sizes for more precission?
                   'aHash': str(imagehash.average_hash(img)),
                   'pHash': str(imagehash.phash(img)),
                   'dHash': str(imagehash.dhash(img)),
@@ -131,6 +132,7 @@ def build_image_db(root_path, db_filename, patterns=COMMON_IMAGE_PATTERNS, resum
 
     data["finished"] = False
     data["successful"] = True
+    data['exceptions'] = {}  # clear exceptions
 
     last_checkpoint = 0
 
@@ -138,21 +140,36 @@ def build_image_db(root_path, db_filename, patterns=COMMON_IMAGE_PATTERNS, resum
         """return tuple containing the index, a flag that is true if
         there was prior data, filename, and the actual descriptor"""
 
-        idx, filename_rel = t
+        try:
+            idx, filename_rel = t
 
-        result = {'idx': idx, # index of the image
-                  'had_prior': filename_rel in images, # True iff we had prior information on the image
-                  'filename': filename_rel, # relative file name
-                  'descriptor': image_descriptor(os.path.join(root_path, filename_rel), images.get(filename_rel)) # the actual descriptor
-        }
+            result = {'success': True,
+                      'idx': idx,  # index of the image
+                      'had_prior': filename_rel in images,  # True iff we had prior information on the image
+                      'filename': filename_rel,  # relative file name
+                      'descriptor': image_descriptor(os.path.join(root_path, filename_rel), images.get(filename_rel))
+                      # the actual descriptor
+                      }
 
-        return result
+            return result
+        except Exception as e:
+            return {'success': False,
+                    'idx': idx,  # index of the image
+                    'had_prior': filename_rel in images,  # True iff we had prior information on the image
+                    'filename': filename_rel,  # relative file name
+                    'exception': "{0} ({1})".format(str(e.__class__.__qualname__), str(e))
+                    }
 
     processed = 0
     time_spent = timedelta(0)
     try:
         with ThreadPoolExecutor(WORKER_THREADS) as executor:
             for datapoint in executor.map(descriptor_helper, enumerate(filenames)):
+
+                if not datapoint['success']:
+                    data['exceptions'][datapoint['filename']] = datapoint['exception']
+                    print("Exception while processing {0}: \n{1}".format(datapoint['filename'], datapoint['exception']))
+                    continue
 
                 filename_rel = datapoint["filename"]
                 desc = datapoint["descriptor"]
