@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Matching test</title>
+  </head>
+  <body>
+  <table>
+  {%- for r in results %}
+    <tr>
+        <td>{{ r.votes }}</td>
+        <td><img src="{{ r.fb_image }}" width=200 /></td>
+        <td><img src="{{ r.original_image }}" width=200 /></td>
+    </tr>
+  {%- endfor %}
+  </table>
+  </body>
+</html>
